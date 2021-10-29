@@ -3,6 +3,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.sql
 import org.apache.spark.sql._
+import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkContext._
 import org.apache.log4j.{Level, Logger}
 import java.io.PrintWriter
@@ -24,6 +25,9 @@ val FORBIDDEN_COLUMNS = Array(
 "SecurityDelay",
 "LateAircraftDelay"
 			)
+// The following columns are exluded because
+// they were either mainly null or did not have 
+// an effect on the resulting delay
 
 val EXCLUDED_COLUMNS = Array(
 "Cancelled",
@@ -33,8 +37,19 @@ val EXCLUDED_COLUMNS = Array(
 "TaxiOut"
 )
 
-        //	val conf = new SparkConf().setAppName("Spark Assignment 1")
-	//	val sc = new SparkContext(conf)
+val INT_COLUMNS = Array(
+"Year",
+"Month",
+"DayOfMonth",
+"DepTime",
+"CRSDepTime",
+"CRSArrTime",
+"FlightNum",
+"CRSElapsedTime",
+"ArrDelay",
+"DepDelay",
+"Distance"
+)
 
 
 
@@ -44,12 +59,24 @@ val EXCLUDED_COLUMNS = Array(
 			.config("some option", "value")
 			.enableHiveSupport()
 			.getOrCreate()
+		
+        	var data = spark.read.option("header",true)
+					.csv("/tmp/csv/1987_min.csv")
+		data = data.withColumn("Cancelled", col("Cancelled").cast("integer"))
 
-        	val data = spark.read.csv("/tmp/csv/1987.csv")
-	        val droppedData = data.drop((FORBIDDEN_COLUMNS++EXCLUDED_COLUMNS): _*)
+		// Remove the rows where "cancelled" field has a value, 
+		// so that we don't try to evalueate flights that did not happen
+		data = data.filter("Cancelled == 0")		
+	        data = data.drop((FORBIDDEN_COLUMNS++EXCLUDED_COLUMNS): _*)
 
-		val count = droppedData.count()
-		val stringData = droppedData.collect().mkString(" ")
+		// Cast int columns to int
+		for (colName <- INT_COLUMNS)
+			data = data.withColumn(colName, col(colName).cast("integer"))
+
+		data.printSchema()
+
+		val count = data.count()
+		val stringData = data.collect().mkString(" ")
 		new PrintWriter("csv_output") { write("NumberOfTotalRows="+count+"\n"+stringData+"\n"); close }
 
 	}
