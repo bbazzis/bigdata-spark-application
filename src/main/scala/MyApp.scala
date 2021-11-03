@@ -11,20 +11,34 @@ import java.io.PrintWriter
 object MyApp {
 	def main(args : Array[String]) {
 		Logger.getLogger("org").setLevel(Level.WARN)
+		
+		if (args.length == 0) {
+			println("Please enter the directory of the data file")
+			System.exit(0)
+		}
 
+		val filename = args(0)
+		println("filename = " + filename)
+		// filename = "/tmp/csv/1987_min.csv"
+		// Check whether the file exists at the location
 
-val FORBIDDEN_COLUMNS = Array(
-			"ArrTime",
-"ActualElapsedTime",
-"AirTime",
-"TaxiIn",
-"Diverted",
-"CarrierDelay",
-"WeatherDelay",
-"NASDelay",
-"SecurityDelay",
-"LateAircraftDelay"
-			)
+		// Check if the file is of correct type
+
+		// Check if file can be read without an issue
+		
+		
+		val FORBIDDEN_COLUMNS = Array(
+				"ArrTime",
+				"ActualElapsedTime",
+				"AirTime",
+				"TaxiIn",
+				"Diverted",
+				"CarrierDelay",
+				"WeatherDelay",
+				"NASDelay",
+				"SecurityDelay",
+				"LateAircraftDelay"
+		)
 // The following columns are exluded because
 // they were either mainly null or did not have 
 // an effect on the resulting delay
@@ -60,14 +74,14 @@ val INT_COLUMNS = Array(
 			.enableHiveSupport()
 			.getOrCreate()
 		
-        	var data = spark.read.option("header",true)
-					.csv("/tmp/csv/1987_min.csv")
+		var data = spark.read.option("header",true)
+					.csv(filename)
 		data = data.withColumn("Cancelled", col("Cancelled").cast("integer"))
 
 		// Remove the rows where "cancelled" field has a value, 
 		// so that we don't try to evalueate flights that did not happen
 		data = data.filter("Cancelled == 0")		
-	        data = data.drop((FORBIDDEN_COLUMNS++EXCLUDED_COLUMNS): _*)
+		data = data.drop((FORBIDDEN_COLUMNS++EXCLUDED_COLUMNS): _*)
 
 		// Cast int columns to int
 		for (colName <- INT_COLUMNS)
