@@ -80,8 +80,7 @@ val INT_COLUMNS = Array(
 			.enableHiveSupport()
 			.getOrCreate()
 		
-		var data = spark.read.option("header",true)
-					.csv(filename)
+		var data = spark.read.option("header",true).option("mode", "DROPMALFORMED").csv(filename)
 		data = data.withColumn("Cancelled", col("Cancelled").cast("integer"))
 
 		// Remove the rows where "cancelled" field has a value, 
@@ -104,7 +103,7 @@ val INT_COLUMNS = Array(
   			.setInputCols(Array(columns: _*))
   			.setOutputCol("features")
 		
-		val output = assembler.transform(data)
+		val output = assembler.setHandleInvalid("skip").transform(data)
 			//output.show(truncate=false)
 
 		//NORMALIZATION
