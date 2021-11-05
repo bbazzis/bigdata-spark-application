@@ -7,6 +7,9 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.SparkContext._
 import org.apache.log4j.{Level, Logger}
 import java.io.PrintWriter
+import org.apache.spark.ml.feature.VectorAssembler
+import org.apache.spark.ml.feature.Normalizer
+import org.apache.spark.ml.regression.LinearRegression
 
 object MyApp {
 	def main(args : Array[String]) {
@@ -48,7 +51,10 @@ val EXCLUDED_COLUMNS = Array(
 "CancellationCode",
 "TailNum",
 "DayOfWeek",
-"TaxiOut"
+"TaxiOut",
+"Origin",
+"Dest",
+"UniqueCarrier"
 )
 
 val INT_COLUMNS = Array(
@@ -93,6 +99,38 @@ val INT_COLUMNS = Array(
 		val stringData = data.collect().mkString(" ")
 		new PrintWriter("csv_output") { write("NumberOfTotalRows="+count+"\n"+stringData+"\n"); close }
 
+		val columns = data.columns.toSeq
+		val assembler = new VectorAssembler()
+  			.setInputCols(Array(columns: _*))
+  			.setOutputCol("features")
+		
+		val output = assembler.transform(data)
+			//output.show(truncate=false)
+
+		//NORMALIZATION
+		val normalizer = new Normalizer()
+  			.setInputCol("features")
+  			.setOutputCol("normFeatures")
+  			.setP(1.0)
+
+		val l1NormData = normalizer.transform(output)
+		//l1NormData.show(truncate=false)
+
+		val lr = new LinearRegression()
+  			.setFeaturesCol("features")
+  			.setLabelCol("ArrDelay")
+  			.setMaxIter(10)
+  			.setElasticNetParam(0.8)
+		
+		val lrModel = lr.fit(output)
+		println(s"Coefficients: ${lrModel.coefficients}")
+		println(s"Intercept: ${lrModel.intercept}")
+		val trainingSummary = lrModel.summary
+		println(s"numIterations: ${trainingSummary.totalIterations}")
+		println(s"objectiveHistory: ${trainingSummary.objectiveHistory.toList}")
+		trainingSummary.residuals.show()
+		println(s"RMSE: ${trainingSummary.rootMeanSquaredError}")
+		println(s"r2: ${trainingSummary.r2}")
 	}
 }
     
