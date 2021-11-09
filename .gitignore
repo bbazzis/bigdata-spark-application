@@ -114,4 +114,7 @@ spark-warehouse/
 .metals/
 .vscode/
 
+# Generated output file
+csv_output*
+
 # End of https://www.toptal.com/developers/gitignore/api/scala,spark
