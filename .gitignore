@@ -110,5 +110,8 @@ spark-warehouse/
 # For SBT
 .jvmopts
 
+# VSCode stuff
+.metals/
+.vscode/
 
 # End of https://www.toptal.com/developers/gitignore/api/scala,spark

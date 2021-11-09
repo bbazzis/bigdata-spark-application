@@ -42,34 +42,36 @@ object MyApp {
 				"SecurityDelay",
 				"LateAircraftDelay"
 		)
-// The following columns are exluded because
-// they were either mainly null or did not have 
-// an effect on the resulting delay
+		// The following columns are exluded because
+		// they were either mainly null or did not have 
+		// an effect on the resulting delay
 
-val EXCLUDED_COLUMNS = Array(
-"Cancelled",
-"CancellationCode",
-"TailNum",
-"DayOfWeek",
-"TaxiOut",
-"Origin",
-"Dest",
-"UniqueCarrier"
-)
+		val EXCLUDED_COLUMNS = Array(
+			"Cancelled",
+			"CancellationCode",
+			"TailNum",
+			"DayOfWeek",
+			"TaxiOut",
+			"Origin",
+			"Dest",
+			"UniqueCarrier"
+		)
 
-val INT_COLUMNS = Array(
-"Year",
-"Month",
-"DayOfMonth",
-"DepTime",
-"CRSDepTime",
-"CRSArrTime",
-"FlightNum",
-"CRSElapsedTime",
-"ArrDelay",
-"DepDelay",
-"Distance"
-)
+
+		// Only specify string columns, then take them out from the remaining list.
+		val INT_COLUMNS = Array(
+			"Year",
+			"Month",
+			"DayOfMonth",
+			"DepTime",
+			"CRSDepTime",
+			"CRSArrTime",
+			"FlightNum",
+			"CRSElapsedTime",
+			"ArrDelay",
+			"DepDelay",
+			"Distance"
+		)
 
 
 
@@ -81,6 +83,8 @@ val INT_COLUMNS = Array(
 			.getOrCreate()
 		
 		var data = spark.read.option("header",true).option("mode", "DROPMALFORMED").csv(filename)
+		
+		// Transform cancelled field to int to evaluate the flight status
 		data = data.withColumn("Cancelled", col("Cancelled").cast("integer"))
 
 		// Remove the rows where "cancelled" field has a value, 
@@ -88,15 +92,25 @@ val INT_COLUMNS = Array(
 		data = data.filter("Cancelled == 0")		
 		data = data.drop((FORBIDDEN_COLUMNS++EXCLUDED_COLUMNS): _*)
 
+		// TODO: Use the string columns (Origin, destination, UniqueCarrier) by converting them to categorical variables and find a way to utilize them. 
 		// Cast int columns to int
 		for (colName <- INT_COLUMNS)
 			data = data.withColumn(colName, col(colName).cast("integer"))
 
+		// TODO: remove the 4 lines below 
 		data.printSchema()
-
 		val count = data.count()
 		val stringData = data.collect().mkString(" ")
 		new PrintWriter("csv_output") { write("NumberOfTotalRows="+count+"\n"+stringData+"\n"); close }
+
+		// TODO: Check each variable one by one to determine the relationship with the result of the machine learning algorithm
+		// TODO: Cross validation for the machine learning output
+
+
+
+		// --------------------------------------------------------------------------------------------------
+		// Machine learning begins
+		// --------------------------------------------------------------------------------------------------
 
 		val columns = data.columns.toSeq
 		val assembler = new VectorAssembler()
