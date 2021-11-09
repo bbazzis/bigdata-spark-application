@@ -9,6 +9,8 @@ import org.apache.log4j.{Level, Logger}
 import java.io.PrintWriter
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.feature.Normalizer
+import org.apache.spark.ml.feature.OneHotEncoder
+import org.apache.spark.ml.feature.StringIndexer
 import org.apache.spark.ml.regression.LinearRegression
 
 object MyApp {
@@ -51,10 +53,10 @@ object MyApp {
 			"CancellationCode",
 			"TailNum",
 			"DayOfWeek",
-			"TaxiOut",
+			"TaxiOut"/*,
 			"Origin",
 			"Dest",
-			"UniqueCarrier"
+			"UniqueCarrier"*/
 		)
 
 
@@ -73,8 +75,14 @@ object MyApp {
 			"Distance"
 		)
 
-
-
+		//Categorical variables
+		val CAT_COLUMNS = Array(
+			"Origin",
+			"Dest",
+			"UniqueCarrier"
+		)
+			
+		
 		val spark = org.apache.spark.sql.SparkSession
 			.builder()
 			.appName("Spark SQL example")
@@ -93,6 +101,17 @@ object MyApp {
 		data = data.drop((FORBIDDEN_COLUMNS++EXCLUDED_COLUMNS): _*)
 
 		// TODO: Use the string columns (Origin, destination, UniqueCarrier) by converting them to categorical variables and find a way to utilize them. 
+		val indexer = new StringIndexer()
+			.setInputCols(CAT_COLUMNS)
+			.setOutputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier"))
+		val indexed = indexer.fit(data).transform(data)
+
+		val encoder = new OneHotEncoder()
+			.setInputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier"))
+			.setOutputCols(Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier"))
+		var encoded = encoder.fit(indexed).transform(indexed)
+		data = encoded
+
 		// Cast int columns to int
 		for (colName <- INT_COLUMNS)
 			data = data.withColumn(colName, col(colName).cast("integer"))
@@ -104,6 +123,8 @@ object MyApp {
 		new PrintWriter("csv_output") { write("NumberOfTotalRows="+count+"\n"+stringData+"\n"); close }
 
 		// TODO: Check each variable one by one to determine the relationship with the result of the machine learning algorithm
+		
+		
 		// TODO: Cross validation for the machine learning output
 
 
@@ -114,7 +135,8 @@ object MyApp {
 
 		val columns = data.columns.toSeq
 		val assembler = new VectorAssembler()
-  			.setInputCols(Array(columns: _*))
+  			//.setInputCols(Array(columns: _*))
+			.setInputCols(Array("Year", "Month", "DayOfMonth", "DepTime", "CRSDepTime", "CRSArrTime", "FlightNum", "CRSElapsedTime", "ArrDelay", "DepDelay","Distance", "Enc_Origin","Enc_Dest","Enc_UniqueCarrier"))
   			.setOutputCol("features")
 		
 		val output = assembler.setHandleInvalid("skip").transform(data)
@@ -129,13 +151,20 @@ object MyApp {
 		val l1NormData = normalizer.transform(output)
 		//l1NormData.show(truncate=false)
 
+		//SPLITING DATA
+		val split = l1NormData.randomSplit(Array(0.8,0.2))
+		val trainingData = split(0)
+		val testData = split(1)
+
 		val lr = new LinearRegression()
   			.setFeaturesCol("features")
   			.setLabelCol("ArrDelay")
   			.setMaxIter(10)
   			.setElasticNetParam(0.8)
 		
-		val lrModel = lr.fit(output)
+		//val lrModel = lr.fit(output)
+		val lrModel = lr.fit(trainingData)
+		//val lrModel = lr.fit(l1NormData)
 		println(s"Coefficients: ${lrModel.coefficients}")
 		println(s"Intercept: ${lrModel.intercept}")
 		val trainingSummary = lrModel.summary
