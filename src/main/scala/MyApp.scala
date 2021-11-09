@@ -31,7 +31,10 @@ object MyApp {
 
 		// Check if file can be read without an issue
 		
-		
+		/*
+		** These columns have been forbidden by the assignment rules
+		** as these values are unknown at the time of flight departure
+		*/
 		val FORBIDDEN_COLUMNS = Array(
 				"ArrTime",
 				"ActualElapsedTime",
@@ -44,23 +47,20 @@ object MyApp {
 				"SecurityDelay",
 				"LateAircraftDelay"
 		)
-		// The following columns are exluded because
-		// they were either mainly null or did not have 
-		// an effect on the resulting delay
 
+		/*
+		** The following columns are exluded because
+		** they were either mostly null or did not have an effect on the resulting delay
+		*/
 		val EXCLUDED_COLUMNS = Array(
 			"Cancelled",
 			"CancellationCode",
 			"TailNum",
 			"DayOfWeek",
-			"TaxiOut"/*,
-			"Origin",
-			"Dest",
-			"UniqueCarrier"*/
+			"TaxiOut"
 		)
 
-
-		// Only specify string columns, then take them out from the remaining list.
+		// Numerical Variables
 		val INT_COLUMNS = Array(
 			"Year",
 			"Month",
@@ -75,29 +75,34 @@ object MyApp {
 			"Distance"
 		)
 
-		//Categorical variables
+		// Categorical variables
 		val CAT_COLUMNS = Array(
 			"Origin",
 			"Dest",
 			"UniqueCarrier"
 		)
-			
 		
 		val spark = org.apache.spark.sql.SparkSession
 			.builder()
-			.appName("Spark SQL example")
-			.config("some option", "value")
+			.appName("Group 13 - Big Data Assignment - Flight Delay Predictor")
+			.config("some option", "value") // TODO: Remove or fix
 			.enableHiveSupport()
 			.getOrCreate()
 		
+		// Skip malformed data
+		// TODO: Probably need to read into RDD(s)
 		var data = spark.read.option("header",true).option("mode", "DROPMALFORMED").csv(filename)
 		
 		// Transform cancelled field to int to evaluate the flight status
 		data = data.withColumn("Cancelled", col("Cancelled").cast("integer"))
 
-		// Remove the rows where "cancelled" field has a value, 
-		// so that we don't try to evalueate flights that did not happen
-		data = data.filter("Cancelled == 0")		
+		/*
+		** Remove the rows where "cancelled" field has a value, 
+		** so that we don't try to evaluate the flights that did not happen
+		*/
+		data = data.filter("Cancelled == 0")
+
+		// Drop all excluded columns	
 		data = data.drop((FORBIDDEN_COLUMNS++EXCLUDED_COLUMNS): _*)
 
 		// TODO: Use the string columns (Origin, destination, UniqueCarrier) by converting them to categorical variables and find a way to utilize them. 
@@ -116,7 +121,7 @@ object MyApp {
 		for (colName <- INT_COLUMNS)
 			data = data.withColumn(colName, col(colName).cast("integer"))
 
-		// TODO: remove the 4 lines below 
+		// TODO: remove the 4 lines below before the final submission
 		data.printSchema()
 		val count = data.count()
 		val stringData = data.collect().mkString(" ")
