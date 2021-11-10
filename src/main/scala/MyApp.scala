@@ -3,8 +3,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.sql
 import org.apache.spark.sql._
-import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.functions.when
+import org.apache.spark.sql.functions.{col, when, concat, lit, unix_timestamp, udf}
 import org.apache.spark.SparkContext._
 import org.apache.log4j.{Level, Logger}
 import java.io.PrintWriter
@@ -46,21 +45,21 @@ object MyApp {
 		"TailNum",
 		"DayOfWeek",
 		"TaxiOut",
-		"Month"
+		"Year",
+		"Month",
+		"DayOfMonth"
 	)
 		
 	// Numerical Variables
 	val IntColumns = Array(
-		"Year",
-		//"Month",
-		//"DayOfMonth",
 		"DepTime",
 		"CRSDepTime",
 		"CRSArrTime",
 		"FlightNum",
 		"CRSElapsedTime",
 		"DepDelay",
-		"Distance"
+		"Distance",
+		"TimeAsEpoch"
 	)
 
 	// Categorical variables
@@ -91,8 +90,8 @@ object MyApp {
 
 		// Check if file can be read without an issue
 		
-		
-		
+
+
 		val spark = org.apache.spark.sql.SparkSession
 			.builder()
 			.appName("Group 13 - Big Data Assignment - Flight Delay Predictor")
@@ -121,12 +120,7 @@ object MyApp {
 			.when(col("Month") === 6 || col("Month") === 7 || col("Month") === 8,"Summer")
 			.otherwise("Autumn"))
 
-		// Drop all excluded columns	
-		data = data.drop((ForbiddenColumns++ExcludedColumns): _*)
-
-		
-
-		// TODO: Use the string columns (Origin, destination, UniqueCarrier, DayofMonth) by converting them to categorical variables and find a way to utilize them. 
+		// Using string columns as categorical data
 		val indexer = new StringIndexer()
 			.setInputCols(CatColumns)
 			.setOutputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season"))
@@ -135,18 +129,29 @@ object MyApp {
 		val encoder = new OneHotEncoder()
 			.setInputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season"))
 			.setOutputCols(Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
-		var encoded = encoder.fit(indexed).transform(indexed)
-		data = encoded
+		data = encoder.fit(indexed).transform(indexed)
+		
+		// Merge date columns into a single timeAsEpoch Column
+		val fixDateZeroPaddingUDF = udf((year:String, month:String, day:String) => {
+			var paddedDate = "%04d".format(year.toInt) +
+					 "-" +
+					 "%02d".format(month.toInt) +
+					 "-" + 
+					 "%02d".format(day.toInt)
+			paddedDate
+		})
+		data = data.withColumn("TimeAsEpoch", unix_timestamp(
+									fixDateZeroPaddingUDF(col("Year"), col("Month"), col("DayOfMonth")), "yyyy-LL-dd"))
+		
+		// Drop all excluded columns	
+		data = data.drop((ForbiddenColumns++ExcludedColumns): _*)
 
 		// Cast int columns to int
 		for (colName <- IntColumns++Array(LabelColumn))
 			data = data.withColumn(colName, col(colName).cast("integer"))
 
-		// TODO: remove the 4 lines below before the final submission
+		// TODO: remove the line below before the final submission
 		data.printSchema()
-		val count = data.count()
-		val stringData = data.collect().mkString(" ")
-		new PrintWriter("csv_output") { write("NumberOfTotalRows="+count+"\n"+stringData+"\n"); close }
 
 		// --------------------------------------------------------------------------------------------------
 		// Machine learning begins
@@ -157,11 +162,8 @@ object MyApp {
 		val trainingData = split(0)
 		val testData = split(1)
 
-		// TODO: Check each variable one by one to determine the relationship with the result of the machine learning algorithm
+		// TODO: Consider better ways of feature selection
 		applyLinearRegressionModel(trainingData);
-
-		// TODO: Cross validation for the machine learning output
-
 	}
 
 	def applyUnivariateFilter( data:DataFrame ) : Unit = {
