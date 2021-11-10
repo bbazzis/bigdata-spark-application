@@ -4,6 +4,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.functions.when
 import org.apache.spark.SparkContext._
 import org.apache.log4j.{Level, Logger}
 import java.io.PrintWriter
@@ -44,14 +45,15 @@ object MyApp {
 		"CancellationCode",
 		"TailNum",
 		"DayOfWeek",
-		"TaxiOut"
+		"TaxiOut",
+		"Month"
 	)
 		
 	// Numerical Variables
 	val IntColumns = Array(
 		"Year",
-		"Month",
-		"DayOfMonth",
+		//"Month",
+		//"DayOfMonth",
 		"DepTime",
 		"CRSDepTime",
 		"CRSArrTime",
@@ -65,7 +67,9 @@ object MyApp {
 	val CatColumns = Array(
 		"Origin",
 		"Dest",
-		"UniqueCarrier"
+		"UniqueCarrier",
+		"DayofMonth",
+		"Season"
 	)
 
 	val LabelColumn = "ArrDelay"
@@ -109,18 +113,28 @@ object MyApp {
 		*/
 		data = data.filter("Cancelled == 0")
 
+		//Transform Month variable into Season
+		data = data.withColumn("Month", col("Month").cast("string"))
+		//data.show()
+		data = data.withColumn("Season", when(col("Month") === 12 || col("Month") === 1 || col("Month") === 2,"Winter")
+			.when(col("Month") === 3 || col("Month") === 4 || col("Month") === 5,"Spring")
+			.when(col("Month") === 6 || col("Month") === 7 || col("Month") === 8,"Summer")
+			.otherwise("Autumn"))
+
 		// Drop all excluded columns	
 		data = data.drop((ForbiddenColumns++ExcludedColumns): _*)
 
-		// TODO: Use the string columns (Origin, destination, UniqueCarrier) by converting them to categorical variables and find a way to utilize them. 
+		
+
+		// TODO: Use the string columns (Origin, destination, UniqueCarrier, DayofMonth) by converting them to categorical variables and find a way to utilize them. 
 		val indexer = new StringIndexer()
 			.setInputCols(CatColumns)
-			.setOutputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier"))
+			.setOutputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season"))
 		val indexed = indexer.fit(data).transform(data)
 
 		val encoder = new OneHotEncoder()
-			.setInputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier"))
-			.setOutputCols(Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier"))
+			.setInputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season"))
+			.setOutputCols(Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
 		var encoded = encoder.fit(indexed).transform(indexed)
 		data = encoded
 
@@ -152,7 +166,7 @@ object MyApp {
 
 	def applyUnivariateFilter( data:DataFrame ) : Unit = {
 		val assembler = new VectorAssembler()
-			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier"))
+			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
 			.setOutputCol("features")
 			.setHandleInvalid("skip")
 		
@@ -190,7 +204,7 @@ object MyApp {
 
    def applyLinearRegressionModel( data:DataFrame ) : Unit = {
 	   val assembler = new VectorAssembler()
-  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier"))
+  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
 			.setOutputCol("features")
 			.setHandleInvalid("skip")
 		
@@ -229,7 +243,7 @@ object MyApp {
 
    def applyLinearRegressionModelViaPipeline( trainingData:DataFrame, testData:DataFrame ) : Unit = {
 	   val assembler = new VectorAssembler()
-  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier"))
+  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
 			.setOutputCol("features")
 			.setHandleInvalid("skip")
 		
