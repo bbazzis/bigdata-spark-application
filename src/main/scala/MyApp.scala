@@ -12,10 +12,11 @@ import org.apache.spark.ml.feature.Normalizer
 import org.apache.spark.ml.feature.OneHotEncoder
 import org.apache.spark.ml.feature.StringIndexer
 import org.apache.spark.ml.regression.LinearRegression
+import org.apache.spark.ml.regression.GeneralizedLinearRegression
 import org.apache.spark.ml.feature.UnivariateFeatureSelector
 import org.apache.spark.ml.feature.VarianceThresholdSelector
 import org.apache.spark.ml.Pipeline
-
+import org.apache.spark.ml.evaluation.RegressionEvaluator
 object MyApp {
 
 	/*
@@ -164,6 +165,7 @@ object MyApp {
 
 		// TODO: Consider better ways of feature selection
 		applyLinearRegressionModel(trainingData);
+		applyGeneralizedLinearRegressionModel(trainingData, testData)
 	}
 
 	def applyUnivariateFilter( data:DataFrame ) : Unit = {
@@ -241,6 +243,7 @@ object MyApp {
 		trainingSummary.residuals.show()
 		println(s"RMSE: ${trainingSummary.rootMeanSquaredError}")
 		println(s"r2: ${trainingSummary.r2}")
+		
    }
 
    def applyLinearRegressionModelViaPipeline( trainingData:DataFrame, testData:DataFrame ) : Unit = {
@@ -265,5 +268,64 @@ object MyApp {
 		val model = pipeline.fit(trainingData)
 		println("Output of pipeline model for test data")
 		model.transform(testData).show(truncate=false)
+   }
+
+   def applyGeneralizedLinearRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Unit = {
+	   val assembler = new VectorAssembler()
+  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
+			.setOutputCol("features")
+			.setHandleInvalid("skip")
+		
+		// println("Output of assembler")
+		val training_output = assembler.transform(training_data)
+		val test_output = assembler.transform(test_data)
+		// output.show(truncate=false)
+		
+		//NORMALIZATION
+		val normalizer = new Normalizer()
+  			.setInputCol("features")
+  			.setOutputCol("normFeatures")
+  			.setP(1.0)
+
+		// println("Output of normalizer")
+		val gl1NormTrainingData = normalizer.transform(training_output)
+		// l1NormData.show(truncate=false)
+		val gl1NormTestData = normalizer.transform(test_output)
+
+		val glr = new GeneralizedLinearRegression()
+  			.setFamily("gaussian")
+			.setFeaturesCol("normFeatures")
+  			.setLabelCol("ArrDelay")
+  			.setMaxIter(10)
+  			.setRegParam(0.8) //check values for this function
+		
+		//val lrModel = lr.fit(trainingData)
+		val glrModel = glr.fit(gl1NormTrainingData)
+		
+		println(s"Coefficients: ${glrModel.coefficients}")
+		println(s"Intercept: ${glrModel.intercept}")
+		val trainingSummary = glrModel.summary
+		println(s"Dispersion: ${trainingSummary.dispersion}")
+		println(s"Deviance: ${trainingSummary.deviance}")
+		trainingSummary.residuals.show()
+		println(s"AIC: ${trainingSummary.aic}")
+		println(s"Residual Degree of freedom Null: ${trainingSummary.residualDegreeOfFreedomNull}")
+   
+		val predictions = glrModel.transform(gl1NormTestData)
+		val rmse_glr = new RegressionEvaluator()
+			.setMetricName("rmse")
+			.setLabelCol("ArrDelay")
+			.setPredictionCol("prediction")
+			.evaluate(predictions)
+		println(s"RMSE: ${rmse_glr}")
+
+		
+		val r2_glr = new RegressionEvaluator()
+			.setMetricName("r2")
+			.setLabelCol("ArrDelay")
+			.setPredictionCol("prediction")
+			.evaluate(predictions)
+		println(s"r2: ${r2_glr}")
+
    }
 }
