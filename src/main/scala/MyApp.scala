@@ -11,8 +11,8 @@ import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.feature.Normalizer
 import org.apache.spark.ml.feature.OneHotEncoder
 import org.apache.spark.ml.feature.StringIndexer
-import org.apache.spark.ml.regression.LinearRegression
-import org.apache.spark.ml.regression.GeneralizedLinearRegression
+import org.apache.spark.ml.regression.{LinearRegression, GeneralizedLinearRegression}
+import org.apache.spark.ml.regression.{RandomForestRegressionModel, RandomForestRegressor}
 import org.apache.spark.ml.feature.UnivariateFeatureSelector
 import org.apache.spark.ml.feature.VarianceThresholdSelector
 import org.apache.spark.ml.Pipeline
@@ -170,10 +170,12 @@ object MyApp {
 			val testData = split(1)
 
 			// TODO: Consider better ways of feature selection
-			println("Linear regression ")
-			applyLinearRegressionModel(trainingData, testData);
-			println("Generalized linear regression ")
-			applyGeneralizedLinearRegressionModel(trainingData, testData)
+			// println("Linear regression ")
+			// applyLinearRegressionModel(trainingData, testData);
+			// println("Generalized linear regression ")
+			// applyGeneralizedLinearRegressionModel(trainingData, testData)
+			println("Random forest regression ")
+			applyRandomForestRegressionModel(trainingData,testData)
 		}
 		
 	}
@@ -250,20 +252,20 @@ object MyApp {
 		// println(s"numIterations: ${trainingSummary.totalIterations}")
 		// println(s"objectiveHistory: ${trainingSummary.objectiveHistory.toList}")
 		// trainingSummary.residuals.show()
-		val rmse_glr = new RegressionEvaluator()
+		val rmse_lr = new RegressionEvaluator()
 			.setMetricName("rmse")
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"RMSE: ${rmse_glr}")
+		println(s"RMSE: ${rmse_lr}")
 
 		
-		val r2_glr = new RegressionEvaluator()
+		val r2_lr = new RegressionEvaluator()
 			.setMetricName("r2")
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"r2: ${r2_glr}")
+		println(s"r2: ${r2_lr}")
 		
    }
 
@@ -349,4 +351,38 @@ object MyApp {
 		println(s"r2: ${r2_glr}")
 
    }
+
+	////////////RANDOM FOREST///////////
+	def applyRandomForestRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Unit = {
+		val normalizer = new Normalizer()
+  			.setInputCol("selectedFeatures")
+  			.setOutputCol("normFeatures")
+  			.setP(1.0)
+
+		val rfrNormTrainingData = normalizer.transform(training_data)
+		val rfrNormTestData = normalizer.transform(test_data)
+		
+		val rfr = new RandomForestRegressor()
+			.setFeaturesCol("normFeatures")
+			.setLabelCol("ArrDelay")
+			
+		val rfrModel = rfr.fit(rfrNormTrainingData)
+
+		val predictions = rfrModel.transform(rfrNormTestData)
+		val rmse_rfr = new RegressionEvaluator()
+			.setMetricName("rmse")
+			.setLabelCol("ArrDelay")
+			.setPredictionCol("prediction")
+			.evaluate(predictions)
+		println(s"RMSE: ${rmse_rfr}")
+
+		val r2_rfr = new RegressionEvaluator()
+			.setMetricName("r2")
+			.setLabelCol("ArrDelay")
+			.setPredictionCol("prediction")
+			.evaluate(predictions)
+		println(s"r2: ${r2_rfr}")
+
+	}
+
 }
