@@ -11,8 +11,7 @@ import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.feature.Normalizer
 import org.apache.spark.ml.feature.OneHotEncoder
 import org.apache.spark.ml.feature.StringIndexer
-import org.apache.spark.ml.regression.{LinearRegression, GeneralizedLinearRegression}
-import org.apache.spark.ml.regression.{RandomForestRegressionModel, RandomForestRegressor}
+import org.apache.spark.ml.regression.{LinearRegression, GeneralizedLinearRegression, RandomForestRegressionModel, RandomForestRegressor, GBTRegressor}
 import org.apache.spark.ml.feature.UnivariateFeatureSelector
 import org.apache.spark.ml.feature.VarianceThresholdSelector
 import org.apache.spark.ml.Pipeline
@@ -174,8 +173,10 @@ object MyApp {
 			// applyLinearRegressionModel(trainingData, testData);
 			// println("Generalized linear regression ")
 			// applyGeneralizedLinearRegressionModel(trainingData, testData)
-			println("Random forest regression ")
-			applyRandomForestRegressionModel(trainingData,testData)
+			// println("Random forest regression ")
+			// applyRandomForestRegressionModel(trainingData,testData)
+			println("Gradient boosted tree regression ")
+			applyGradientBoostedRegressionModel(trainingData,testData)
 		}
 		
 	}
@@ -382,6 +383,40 @@ object MyApp {
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
 		println(s"r2: ${r2_rfr}")
+
+	}
+
+	////////////GRADIENT BOOSTED TREE REGRESSION///////////
+	def applyGradientBoostedRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Unit = {
+		val normalizer = new Normalizer()
+  			.setInputCol("selectedFeatures")
+  			.setOutputCol("normFeatures")
+  			.setP(1.0)
+
+		val gbtrNormTrainingData = normalizer.transform(training_data)
+		val gbtrNormTestData = normalizer.transform(test_data)
+		
+		val gbtr = new GBTRegressor()
+			.setFeaturesCol("normFeatures")
+			.setLabelCol("ArrDelay")
+			.setMaxIter(10)
+			
+		val gbtrModel = gbtr.fit(gbtrNormTrainingData)
+
+		val predictions = gbtrModel.transform(gbtrNormTestData)
+		val rmse_gbtr = new RegressionEvaluator()
+			.setMetricName("rmse")
+			.setLabelCol("ArrDelay")
+			.setPredictionCol("prediction")
+			.evaluate(predictions)
+		println(s"RMSE: ${rmse_gbtr}")
+
+		val r2_gbtr = new RegressionEvaluator()
+			.setMetricName("r2")
+			.setLabelCol("ArrDelay")
+			.setPredictionCol("prediction")
+			.evaluate(predictions)
+		println(s"r2: ${r2_gbtr}")
 
 	}
 
