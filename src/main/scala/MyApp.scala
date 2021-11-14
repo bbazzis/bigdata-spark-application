@@ -1,4 +1,5 @@
 package upm.bd
+import Array._
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
 import org.apache.spark.sql
@@ -158,27 +159,30 @@ object MyApp {
 		// Machine learning begins
 		// --------------------------------------------------------------------------------------------------
 
+		var univariateResult = Array.ofDim[Double](14, 4, 2) // 1-14 variables, 4 algorithms, 2 outputs
 		//FILTERING SELECTION
-		for(a <- 1 to 14){
+		for(i <- 1 to univariateResult.size){
 			data = data.drop("features","selectedFeatures")
-			data = applyUnivariateFilter(data, a)
-			println("Value of: " + a)
+			data = applyUnivariateFilter(data, i)
+			println("Number of variables: " + i)
 			//SPLITING DATA
 			val split = data.randomSplit(Array(0.8,0.2))
 			val trainingData = split(0)
 			val testData = split(1)
 
 			// TODO: Consider better ways of feature selection
-			// println("Linear regression ")
-			// applyLinearRegressionModel(trainingData, testData);
-			// println("Generalized linear regression ")
-			// applyGeneralizedLinearRegressionModel(trainingData, testData)
-			// println("Random forest regression ")
-			// applyRandomForestRegressionModel(trainingData,testData)
-			println("Gradient boosted tree regression ")
-			applyGradientBoostedRegressionModel(trainingData,testData)
+			univariateResult(i-1)(0) = applyLinearRegressionModel(trainingData, testData);
+			univariateResult(i-1)(1) = applyGeneralizedLinearRegressionModel(trainingData, testData)
+			univariateResult(i-1)(2) = applyRandomForestRegressionModel(trainingData,testData)
+			univariateResult(i-1)(3) = applyGradientBoostedRegressionModel(trainingData,testData)
+		}	
+		println("Number of variables - rmse | r2")
+		for(i <- 0 to univariateResult.size - 1) {
+			println(i + " LR  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+			println(i + " GLR - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+			println(i + " RF  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+			println(i + " GBR - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
 		}
-		
 	}
 
 	def applyUnivariateFilter( data:DataFrame, a:Double) : DataFrame = {
@@ -217,7 +221,7 @@ object MyApp {
 		result.show()
    }
 
-   def applyLinearRegressionModel( training_data:DataFrame , test_data:DataFrame) : Unit = {
+   def applyLinearRegressionModel( training_data:DataFrame , test_data:DataFrame) : Array[Double] = {
 	   /*val assembler = new VectorAssembler()
   			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
 			.setOutputCol("features")
@@ -258,7 +262,7 @@ object MyApp {
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"RMSE: ${rmse_lr}")
+		// println(s"RMSE: ${rmse_lr}")
 
 		
 		val r2_lr = new RegressionEvaluator()
@@ -266,8 +270,9 @@ object MyApp {
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"r2: ${r2_lr}")
-		
+		// println(s"r2: ${r2_lr}")
+
+		return Array(rmse_lr, r2_lr)
    }
 
    def applyLinearRegressionModelViaPipeline( trainingData:DataFrame, testData:DataFrame ) : Unit = {
@@ -294,7 +299,7 @@ object MyApp {
 		model.transform(testData).show(truncate=false)
    }
 
-   def applyGeneralizedLinearRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Unit = {
+   def applyGeneralizedLinearRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
 	   /*val assembler = new VectorAssembler()
   			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
 			.setOutputCol("features")
@@ -341,7 +346,7 @@ object MyApp {
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"RMSE: ${rmse_glr}")
+		// println(s"RMSE: ${rmse_glr}")
 
 		
 		val r2_glr = new RegressionEvaluator()
@@ -349,12 +354,12 @@ object MyApp {
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"r2: ${r2_glr}")
-
+		// println(s"r2: ${r2_glr}")
+		return Array(rmse_glr, r2_glr)
    }
 
 	////////////RANDOM FOREST///////////
-	def applyRandomForestRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Unit = {
+	def applyRandomForestRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
 		val normalizer = new Normalizer()
   			.setInputCol("selectedFeatures")
   			.setOutputCol("normFeatures")
@@ -375,19 +380,19 @@ object MyApp {
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"RMSE: ${rmse_rfr}")
+		// println(s"RMSE: ${rmse_rfr}")
 
 		val r2_rfr = new RegressionEvaluator()
 			.setMetricName("r2")
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"r2: ${r2_rfr}")
-
+		// println(s"r2: ${r2_rfr}")
+		return Array(rmse_rfr, r2_rfr)
 	}
 
 	////////////GRADIENT BOOSTED TREE REGRESSION///////////
-	def applyGradientBoostedRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Unit = {
+	def applyGradientBoostedRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
 		val normalizer = new Normalizer()
   			.setInputCol("selectedFeatures")
   			.setOutputCol("normFeatures")
@@ -409,15 +414,14 @@ object MyApp {
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"RMSE: ${rmse_gbtr}")
+		// println(s"RMSE: ${rmse_gbtr}")
 
 		val r2_gbtr = new RegressionEvaluator()
 			.setMetricName("r2")
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		println(s"r2: ${r2_gbtr}")
-
+		// println(s"r2: ${r2_gbtr}")
+		return Array(rmse_gbtr, r2_gbtr)
 	}
-
 }
