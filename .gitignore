@@ -110,9 +110,30 @@ spark-warehouse/
 # For SBT
 .jvmopts
 
-# VSCode stuff
+### Metals ###
 .metals/
-.vscode/
+.bloop/
+project/**/metals.sbt
+
+### VisualStudioCode ###
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+.vscode
+
+# Local History for Visual Studio Code
+.history/
+
+### VisualStudioCode Patch ###
+# Ignore all local history of files
+.history
+.ionide
+
+# Support for Project snippet scope
+!.vscode/*.code-snippets
 
 # Generated output file
 csv_output*

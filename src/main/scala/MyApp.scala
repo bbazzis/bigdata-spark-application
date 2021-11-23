@@ -75,7 +75,7 @@ object MyApp {
 
 	val LabelColumn = "ArrDelay"
 
-	def main(args : Array[String]) {
+	def main(args : Array[String]) : Unit = {
 		Logger.getLogger("org").setLevel(Level.WARN)
 		
 		if (args.length == 0) {
@@ -142,8 +142,8 @@ object MyApp {
 		val indexed = indexer.fit(data).transform(data)
 
 		val encoder = new OneHotEncoder()
-			.setInputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season",  "Ind_DayOfWeek"))
-			.setOutputCols(Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season",  "Enc_DayOfWeek"))
+			.setInputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season", "Ind_DayOfWeek"))
+			.setOutputCols(Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season", "Enc_DayOfWeek"))
 		data = encoder.fit(indexed).transform(indexed)
 		
 		// Merge date columns into a single timeAsEpoch Column
