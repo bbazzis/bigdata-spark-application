@@ -92,6 +92,19 @@ object MyApp {
 
 		// Check if file can be read without an issue
 		
+		//select algorithm
+		if (args.length == 1) {
+			println("Please enter an algorithm")
+			System.exit(0)
+		}
+		val validAlgorithms = List("LR", "GLR", "RF", "GBR")
+		val selectedAlgorithm = args(1)
+		println("Algorithm selected = " + selectedAlgorithm)
+
+		if (!(validAlgorithms.contains(selectedAlgorithm))) {
+			println("Please select a valid algorithm")
+			System.exit(0)
+		}
 
 
 		val spark = org.apache.spark.sql.SparkSession
@@ -158,31 +171,50 @@ object MyApp {
 		// --------------------------------------------------------------------------------------------------
 		// Machine learning begins
 		// --------------------------------------------------------------------------------------------------
+		
+
+		//SPLITING DATA
+		val split = data.randomSplit(Array(0.8,0.2))
+		var trainingData = split(0)
+		val testData = split(1)
 
 		var univariateResult = Array.ofDim[Double](14, 4, 2) // 1-14 variables, 4 algorithms, 2 outputs
 		//FILTERING SELECTION
 		for(i <- 1 to univariateResult.size){
-			data = data.drop("features","selectedFeatures")
-			data = applyUnivariateFilter(data, i)
+			trainingData = trainingData.drop("features","selectedFeatures")
+			trainingData = applyUnivariateFilter(data, i)
 			println("Number of variables: " + i)
 
-			//SPLITING DATA
-			val split = data.randomSplit(Array(0.8,0.2))
-			val trainingData = split(0)
-			val testData = split(1)
-
 			// TODO: Consider better ways of feature selection
-			univariateResult(i-1)(0) = applyLinearRegressionModel(trainingData, testData);
-			univariateResult(i-1)(1) = applyGeneralizedLinearRegressionModel(trainingData, testData)
-			univariateResult(i-1)(2) = applyRandomForestRegressionModel(trainingData,testData)
-			univariateResult(i-1)(3) = applyGradientBoostedRegressionModel(trainingData,testData)
+			if(selectedAlgorithm == "LR") {
+				univariateResult(i-1)(0) = applyLinearRegressionModel(trainingData, testData);
+			}
+			else if(selectedAlgorithm == "GLR") {
+				univariateResult(i-1)(0) = applyGeneralizedLinearRegressionModel(trainingData, testData);
+			}
+			else if(selectedAlgorithm == "RF") {
+				univariateResult(i-1)(2) = applyRandomForestRegressionModel(trainingData,testData)
+			}
+			else{
+				univariateResult(i-1)(3) = applyGradientBoostedRegressionModel(trainingData,testData)
+			}
+			
 		}	
 		println("Number of variables - rmse | r2")
 		for(i <- 0 to univariateResult.size - 1) {
-			println(i + " LR  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
-			println(i + " GLR - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
-			println(i + " RF  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
-			println(i + " GBR - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+			if(selectedAlgorithm == "LR"){
+				println(i + " LR  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+			}
+			else if(selectedAlgorithm == "GLR"){
+				println(i + " GLR - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+			}
+			else if(selectedAlgorithm == "RF"){
+				println(i + " RF  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+			}
+			else {
+				println(i + " GBR - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+			}
+			
 		}
 	}
 
