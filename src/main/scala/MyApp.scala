@@ -45,7 +45,6 @@ object MyApp {
 		"Cancelled",
 		"CancellationCode",
 		"TailNum",
-		"DayOfWeek",
 		"TaxiOut",
 		"Year",
 		"Month",
@@ -70,7 +69,8 @@ object MyApp {
 		"Dest",
 		"UniqueCarrier",
 		"DayofMonth",
-		"Season"
+		"Season",
+		"DayOfWeek"
 	)
 
 	val LabelColumn = "ArrDelay"
@@ -125,12 +125,12 @@ object MyApp {
 		// Using string columns as categorical data
 		val indexer = new StringIndexer()
 			.setInputCols(CatColumns)
-			.setOutputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season"))
+			.setOutputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season", "Ind_DayOfWeek"))
 		val indexed = indexer.fit(data).transform(data)
 
 		val encoder = new OneHotEncoder()
-			.setInputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season"))
-			.setOutputCols(Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
+			.setInputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season",  "Ind_DayOfWeek"))
+			.setOutputCols(Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season",  "Enc_DayOfWeek"))
 		data = encoder.fit(indexed).transform(indexed)
 		
 		// Merge date columns into a single timeAsEpoch Column
@@ -158,17 +158,19 @@ object MyApp {
 		// --------------------------------------------------------------------------------------------------
 		// Machine learning begins
 		// --------------------------------------------------------------------------------------------------
+		
+
+		//SPLITING DATA
+		val split = data.randomSplit(Array(0.8,0.2))
+		var trainingData = split(0)
+		val testData = split(1)
 
 		var univariateResult = Array.ofDim[Double](14, 4, 2) // 1-14 variables, 4 algorithms, 2 outputs
 		//FILTERING SELECTION
 		for(i <- 1 to univariateResult.size){
-			data = data.drop("features","selectedFeatures")
-			data = applyUnivariateFilter(data, i)
+			trainingData = trainingData.drop("features","selectedFeatures")
+			trainingData = applyUnivariateFilter(data, i)
 			println("Number of variables: " + i)
-			//SPLITING DATA
-			val split = data.randomSplit(Array(0.8,0.2))
-			val trainingData = split(0)
-			val testData = split(1)
 
 			// TODO: Consider better ways of feature selection
 			univariateResult(i-1)(0) = applyLinearRegressionModel(trainingData, testData);
@@ -187,7 +189,7 @@ object MyApp {
 
 	def applyUnivariateFilter( data:DataFrame, a:Double) : DataFrame = {
 		val assembler = new VectorAssembler()
-			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
+			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season",  "Enc_DayOfWeek"))
 			.setOutputCol("features")
 			.setHandleInvalid("skip")
 		
@@ -277,7 +279,7 @@ object MyApp {
 
    def applyLinearRegressionModelViaPipeline( trainingData:DataFrame, testData:DataFrame ) : Unit = {
 	   val assembler = new VectorAssembler()
-  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
+  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season",  "Enc_DayOfWeek"))
 			.setOutputCol("features")
 			.setHandleInvalid("skip")
 		
