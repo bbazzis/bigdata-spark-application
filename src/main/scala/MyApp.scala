@@ -158,19 +158,18 @@ object MyApp {
 		// --------------------------------------------------------------------------------------------------
 		// Machine learning begins
 		// --------------------------------------------------------------------------------------------------
-		
-
-		//SPLITING DATA
-		val split = data.randomSplit(Array(0.8,0.2))
-		var trainingData = split(0)
-		val testData = split(1)
 
 		var univariateResult = Array.ofDim[Double](14, 4, 2) // 1-14 variables, 4 algorithms, 2 outputs
 		//FILTERING SELECTION
 		for(i <- 1 to univariateResult.size){
-			trainingData = trainingData.drop("features","selectedFeatures")
-			trainingData = applyUnivariateFilter(data, i)
+			data = data.drop("features","selectedFeatures")
+			data = applyUnivariateFilter(data, i)
 			println("Number of variables: " + i)
+
+			//SPLITING DATA
+			val split = data.randomSplit(Array(0.8,0.2))
+			val trainingData = split(0)
+			val testData = split(1)
 
 			// TODO: Consider better ways of feature selection
 			univariateResult(i-1)(0) = applyLinearRegressionModel(trainingData, testData);
