@@ -6,8 +6,8 @@ import org.apache.spark.sql
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions.{col, when, concat, lit, unix_timestamp, udf}
 import org.apache.spark.SparkContext._
-import org.apache.log4j.{Level, Logger}
 import java.io.PrintWriter
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.feature.Normalizer
 import org.apache.spark.ml.feature.OneHotEncoder
@@ -47,8 +47,7 @@ object MyApp {
 		"TailNum",
 		"TaxiOut",
 		"Year",
-		"Month",
-		"DayOfMonth"
+		"Month"
 	)
 		
 	// Numerical Variables
@@ -73,6 +72,24 @@ object MyApp {
 		"DayOfWeek"
 	)
 
+	val IndexedCatColumns = Array(
+		"Ind_Origin",
+		"Ind_Dest",
+		"Ind_UniqueCarrier",
+		"Ind_DayofMonth",
+		"Ind_Season",
+		"Ind_DayOfWeek"
+	)
+
+	val EncodedCatColumns = Array(
+		"Enc_Origin",
+		"Enc_Dest",
+		"Enc_UniqueCarrier",
+		"Enc_DayofMonth",
+		"Enc_Season",
+		"Enc_DayOfWeek"
+	)
+
 	val LabelColumn = "ArrDelay"
 
 	def main(args : Array[String]) : Unit = {
@@ -86,14 +103,10 @@ object MyApp {
 		val filename = args(0)
 		println("filename = " + filename)
 		// filename = "/tmp/csv/1987_min.csv"
-		// Check whether the file exists at the location
-
-		// Check if the file is of correct type
-
-		// Check if file can be read without an issue
+		// TODO: Check whether the file exists at the location
+		// TODO: Check if the file is of correct type
+		// TODO: Check if file can be read without an issue
 		
-
-
 		val spark = org.apache.spark.sql.SparkSession
 			.builder()
 			.appName("Group 13 - Big Data Assignment - Flight Delay Predictor")
@@ -105,18 +118,12 @@ object MyApp {
 		// TODO: Probably need to read into RDD(s)
 		var data = spark.read.option("header",true).option("mode", "DROPMALFORMED").csv(filename)
 		
-		// Transform cancelled field to int to evaluate the flight status
+		// Transform cancelled field to int and then drop the cancelled flights
 		data = data.withColumn("Cancelled", col("Cancelled").cast("integer"))
-
-		/*
-		** Remove the rows where "cancelled" field has a value, 
-		** so that we don't try to evaluate the flights that did not happen
-		*/
 		data = data.filter("Cancelled == 0")
 
 		//Transform Month variable into Season
 		data = data.withColumn("Month", col("Month").cast("string"))
-		//data.show()
 		data = data.withColumn("Season", when(col("Month") === 12 || col("Month") === 1 || col("Month") === 2,"Winter")
 			.when(col("Month") === 3 || col("Month") === 4 || col("Month") === 5,"Spring")
 			.when(col("Month") === 6 || col("Month") === 7 || col("Month") === 8,"Summer")
@@ -125,12 +132,12 @@ object MyApp {
 		// Using string columns as categorical data
 		val indexer = new StringIndexer()
 			.setInputCols(CatColumns)
-			.setOutputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season", "Ind_DayOfWeek"))
+			.setOutputCols(IndexedCatColumns)
 		val indexed = indexer.fit(data).transform(data)
 
 		val encoder = new OneHotEncoder()
-			.setInputCols(Array("Ind_Origin","Ind_Dest","Ind_UniqueCarrier","Ind_DayofMonth","Ind_Season", "Ind_DayOfWeek"))
-			.setOutputCols(Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season", "Enc_DayOfWeek"))
+			.setInputCols(IndexedCatColumns)
+			.setOutputCols(EncodedCatColumns)
 		data = encoder.fit(indexed).transform(indexed)
 		
 		// Merge date columns into a single timeAsEpoch Column
@@ -188,7 +195,7 @@ object MyApp {
 
 	def applyUnivariateFilter( data:DataFrame, a:Double) : DataFrame = {
 		val assembler = new VectorAssembler()
-			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season",  "Enc_DayOfWeek"))
+			.setInputCols(IntColumns++EncodedCatColumns)
 			.setOutputCol("features")
 			.setHandleInvalid("skip")
 		
@@ -222,63 +229,9 @@ object MyApp {
 		result.show()
    }
 
-   def applyLinearRegressionModel( training_data:DataFrame , test_data:DataFrame) : Array[Double] = {
-	   /*val assembler = new VectorAssembler()
-  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
-			.setOutputCol("features")
-			.setHandleInvalid("skip")
-		
-		// println("Output of assembler")
-		val output = assembler.transform(data)
-		// output.show(truncate=false)*/
-		
-		//NORMALIZATION
-		val normalizer = new Normalizer()
-  			.setInputCol("selectedFeatures")
-  			.setOutputCol("normFeatures")
-  			.setP(1.0)
-
-		// println("Output of normalizer")
-		val gl1NormTrainingData = normalizer.transform(training_data)
-		// l1NormData.show(truncate=false)
-		val gl1NormTestData = normalizer.transform(test_data)
-
-		val lr = new LinearRegression()
-  			.setFeaturesCol("normFeatures")
-  			.setLabelCol("ArrDelay")
-  			.setMaxIter(10)
-  			.setElasticNetParam(0.8)
-		
-		//val lrModel = lr.fit(trainingData)
-		val lrModel = lr.fit(gl1NormTrainingData)
-		val predictions = lrModel.transform(gl1NormTestData)
-		// println(s"Coefficients: ${lrModel.coefficients}")
-		// println(s"Intercept: ${lrModel.intercept}")
-		//val predictionSummary = predictions.summary
-		// println(s"numIterations: ${trainingSummary.totalIterations}")
-		// println(s"objectiveHistory: ${trainingSummary.objectiveHistory.toList}")
-		// trainingSummary.residuals.show()
-		val rmse_lr = new RegressionEvaluator()
-			.setMetricName("rmse")
-			.setLabelCol("ArrDelay")
-			.setPredictionCol("prediction")
-			.evaluate(predictions)
-		// println(s"RMSE: ${rmse_lr}")
-
-		
-		val r2_lr = new RegressionEvaluator()
-			.setMetricName("r2")
-			.setLabelCol("ArrDelay")
-			.setPredictionCol("prediction")
-			.evaluate(predictions)
-		// println(s"r2: ${r2_lr}")
-
-		return Array(rmse_lr, r2_lr)
-   }
-
-   def applyLinearRegressionModelViaPipeline( trainingData:DataFrame, testData:DataFrame ) : Unit = {
+	def applyLinearRegressionModelViaPipeline( trainingData:DataFrame, testData:DataFrame ) : Unit = {
 	   val assembler = new VectorAssembler()
-  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season",  "Enc_DayOfWeek"))
+  			.setInputCols(IntColumns++EncodedCatColumns)
 			.setOutputCol("features")
 			.setHandleInvalid("skip")
 		
@@ -300,28 +253,46 @@ object MyApp {
 		model.transform(testData).show(truncate=false)
    }
 
-   def applyGeneralizedLinearRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
-	   /*val assembler = new VectorAssembler()
-  			.setInputCols(IntColumns++Array("Enc_Origin","Enc_Dest","Enc_UniqueCarrier","Enc_DayofMonth","Enc_Season"))
-			.setOutputCol("features")
-			.setHandleInvalid("skip")
-		
-		// println("Output of assembler")
-		val training_output = assembler.transform(training_data)
-		val test_output = assembler.transform(test_data)
-		// output.show(truncate=false) */
-		
-		//NORMALIZATION
+   def applyLinearRegressionModel( training_data:DataFrame , test_data:DataFrame) : Array[Double] = {
 		val normalizer = new Normalizer()
   			.setInputCol("selectedFeatures")
   			.setOutputCol("normFeatures")
   			.setP(1.0)
 
-		// println("Output of normalizer")
 		val gl1NormTrainingData = normalizer.transform(training_data)
-		// l1NormData.show(truncate=false)
 		val gl1NormTestData = normalizer.transform(test_data)
+		val lr = new LinearRegression()
+  			.setFeaturesCol("normFeatures")
+  			.setLabelCol("ArrDelay")
+  			.setMaxIter(10)
+  			.setElasticNetParam(0.8)
+		
+		val lrModel = lr.fit(gl1NormTrainingData)
+		val predictions = lrModel.transform(gl1NormTestData)
+		val rmse_lr = new RegressionEvaluator()
+			.setMetricName("rmse")
+			.setLabelCol("ArrDelay")
+			.setPredictionCol("prediction")
+			.evaluate(predictions)
+		
+		val r2_lr = new RegressionEvaluator()
+			.setMetricName("r2")
+			.setLabelCol("ArrDelay")
+			.setPredictionCol("prediction")
+			.evaluate(predictions)
 
+		return Array(rmse_lr, r2_lr)
+   }
+
+   def applyGeneralizedLinearRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
+
+		val normalizer = new Normalizer()
+  			.setInputCol("selectedFeatures")
+  			.setOutputCol("normFeatures")
+  			.setP(1.0)
+
+		val gl1NormTrainingData = normalizer.transform(training_data)
+		val gl1NormTestData = normalizer.transform(test_data)
 		val glr = new GeneralizedLinearRegression()
   			.setFamily("gaussian")
 			.setFeaturesCol("normFeatures")
@@ -329,37 +300,23 @@ object MyApp {
   			.setMaxIter(10)
   			.setRegParam(0.8) //check values for this function
 		
-		//val lrModel = lr.fit(trainingData)
 		val glrModel = glr.fit(gl1NormTrainingData)
-		
-		// println(s"Coefficients: ${glrModel.coefficients}")
-		// println(s"Intercept: ${glrModel.intercept}")
-		// val trainingSummary = glrModel.summary
-		// println(s"Dispersion: ${trainingSummary.dispersion}")
-		// println(s"Deviance: ${trainingSummary.deviance}")
-		// trainingSummary.residuals.show()
-		// println(s"AIC: ${trainingSummary.aic}")
-		// println(s"Residual Degree of freedom Null: ${trainingSummary.residualDegreeOfFreedomNull}")
-   
 		val predictions = glrModel.transform(gl1NormTestData)
 		val rmse_glr = new RegressionEvaluator()
 			.setMetricName("rmse")
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		// println(s"RMSE: ${rmse_glr}")
-
 		
 		val r2_glr = new RegressionEvaluator()
 			.setMetricName("r2")
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		// println(s"r2: ${r2_glr}")
+
 		return Array(rmse_glr, r2_glr)
    }
 
-	////////////RANDOM FOREST///////////
 	def applyRandomForestRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
 		val normalizer = new Normalizer()
   			.setInputCol("selectedFeatures")
@@ -381,18 +338,16 @@ object MyApp {
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		// println(s"RMSE: ${rmse_rfr}")
 
 		val r2_rfr = new RegressionEvaluator()
 			.setMetricName("r2")
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		// println(s"r2: ${r2_rfr}")
+
 		return Array(rmse_rfr, r2_rfr)
 	}
 
-	////////////GRADIENT BOOSTED TREE REGRESSION///////////
 	def applyGradientBoostedRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
 		val normalizer = new Normalizer()
   			.setInputCol("selectedFeatures")
@@ -415,14 +370,13 @@ object MyApp {
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		// println(s"RMSE: ${rmse_gbtr}")
 
 		val r2_gbtr = new RegressionEvaluator()
 			.setMetricName("r2")
 			.setLabelCol("ArrDelay")
 			.setPredictionCol("prediction")
 			.evaluate(predictions)
-		// println(s"r2: ${r2_gbtr}")
+		
 		return Array(rmse_gbtr, r2_gbtr)
 	}
 }
