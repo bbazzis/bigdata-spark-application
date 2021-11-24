@@ -166,30 +166,63 @@ object MyApp {
 		// Machine learning begins
 		// --------------------------------------------------------------------------------------------------
 
-		var univariateResult = Array.ofDim[Double](14, 4, 2) // 1-14 variables, 4 algorithms, 2 outputs
-		//FILTERING SELECTION
+		//SPLITING DATA
+		val split = data.randomSplit(Array(0.8,0.2))
+		val trainingData = split(0)
+		val testData = split(1)
+
+		var univariateResult = Array.ofDim[Double](1, 4, 2) // 1-14 variables, 4 algorithms, 2 outputs
+		
+		// Feature selection and comparison of rmse and r^2
 		for(i <- 1 to univariateResult.size){
-			data = data.drop("features","selectedFeatures")
-			data = applyUnivariateFilter(data, i)
+			// data = data.drop("features","selectedFeatures")
+			// data = applyUnivariateFilter(data, i)
 			println("Number of variables: " + i)
 
-			//SPLITING DATA
-			val split = data.randomSplit(Array(0.8,0.2))
-			val trainingData = split(0)
-			val testData = split(1)
+			val assembler = new VectorAssembler()
+				.setInputCols(IntColumns++EncodedCatColumns)
+				.setOutputCol("features")
+				.setHandleInvalid("skip")
+		
+			// val output = assembler.transform(trainingData)
+			val selector = new UnivariateFeatureSelector()
+				.setFeatureType("continuous")
+				.setLabelType("categorical")
+				.setSelectionMode("numTopFeatures")
+				.setSelectionThreshold(i)
+				.setFeaturesCol("features")
+				.setLabelCol(LabelColumn)
+				.setOutputCol("selectedFeatures")
+
+			// val result = selector.fit(output).transform(output)
+			val normalizer = new Normalizer()
+				.setInputCol("selectedFeatures")
+				.setOutputCol("normFeatures")
+				.setP(1.0)
+
+			val pipeline = new Pipeline()
+				.setStages(Array(assembler, selector, normalizer))
+
+			val pipelineModel = pipeline.fit(trainingData)
+			val fssTrainingData = pipelineModel.transform(trainingData)
+			// println("Output of pipeline model for training data")
+			// fssTrainingData.show(truncate=false)
+			val fssTestData = pipelineModel.transform(testData)
+			// println("Output of pipeline model for test data")
+			// fssTestData.show(truncate=false)
 
 			// TODO: Consider better ways of feature selection
-			univariateResult(i-1)(0) = applyLinearRegressionModel(trainingData, testData);
-			univariateResult(i-1)(1) = applyGeneralizedLinearRegressionModel(trainingData, testData)
-			univariateResult(i-1)(2) = applyRandomForestRegressionModel(trainingData,testData)
-			univariateResult(i-1)(3) = applyGradientBoostedRegressionModel(trainingData,testData)
+			univariateResult(i-1)(0) = applyLinearRegressionModel(fssTrainingData, fssTestData)
+			univariateResult(i-1)(1) = applyGeneralizedLinearRegressionModel(fssTrainingData, fssTestData)
+			univariateResult(i-1)(2) = applyRandomForestRegressionModel(fssTrainingData,fssTestData)
+			univariateResult(i-1)(3) = applyGradientBoostedRegressionModel(fssTrainingData,fssTestData)
 		}	
 		println("Number of variables - rmse | r2")
 		for(i <- 0 to univariateResult.size - 1) {
 			println(i + " LR  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
-			println(i + " GLR - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
-			println(i + " RF  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
-			println(i + " GBR - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+			println(i + " GLR - " + univariateResult(i)(1)(0) + " | " + univariateResult(i)(1)(1))
+			println(i + " RF  - " + univariateResult(i)(2)(0) + " | " + univariateResult(i)(2)(1))
+			println(i + " GBR - " + univariateResult(i)(3)(0) + " | " + univariateResult(i)(3)(1))
 		}
 	}
 
@@ -199,9 +232,7 @@ object MyApp {
 			.setOutputCol("features")
 			.setHandleInvalid("skip")
 		
-		println("Output of assembler")
 		val output = assembler.transform(data)
-
 		val selector = new UnivariateFeatureSelector()
 			.setFeatureType("continuous")
 			.setLabelType("categorical")
@@ -229,46 +260,15 @@ object MyApp {
 		result.show()
    }
 
-	def applyLinearRegressionModelViaPipeline( trainingData:DataFrame, testData:DataFrame ) : Unit = {
-	   val assembler = new VectorAssembler()
-  			.setInputCols(IntColumns++EncodedCatColumns)
-			.setOutputCol("features")
-			.setHandleInvalid("skip")
-		
-		val normalizer = new Normalizer()
-  			.setInputCol("features")
-  			.setOutputCol("normFeatures")
-  			.setP(1.0)
-
+   def applyLinearRegressionModel(normTrainingData:DataFrame , normTestData:DataFrame) : Array[Double] = {
 		val lr = new LinearRegression()
   			.setFeaturesCol("normFeatures")
   			.setLabelCol("ArrDelay")
   			.setMaxIter(10)
   			.setElasticNetParam(0.8)
 		
-		val pipeline = new Pipeline()
-			.setStages(Array(assembler, normalizer, lr))
-		val model = pipeline.fit(trainingData)
-		println("Output of pipeline model for test data")
-		model.transform(testData).show(truncate=false)
-   }
-
-   def applyLinearRegressionModel( training_data:DataFrame , test_data:DataFrame) : Array[Double] = {
-		val normalizer = new Normalizer()
-  			.setInputCol("selectedFeatures")
-  			.setOutputCol("normFeatures")
-  			.setP(1.0)
-
-		val gl1NormTrainingData = normalizer.transform(training_data)
-		val gl1NormTestData = normalizer.transform(test_data)
-		val lr = new LinearRegression()
-  			.setFeaturesCol("normFeatures")
-  			.setLabelCol("ArrDelay")
-  			.setMaxIter(10)
-  			.setElasticNetParam(0.8)
-		
-		val lrModel = lr.fit(gl1NormTrainingData)
-		val predictions = lrModel.transform(gl1NormTestData)
+		val lrModel = lr.fit(normTrainingData)
+		val predictions = lrModel.transform(normTestData)
 		val rmse_lr = new RegressionEvaluator()
 			.setMetricName("rmse")
 			.setLabelCol("ArrDelay")
@@ -284,15 +284,7 @@ object MyApp {
 		return Array(rmse_lr, r2_lr)
    }
 
-   def applyGeneralizedLinearRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
-
-		val normalizer = new Normalizer()
-  			.setInputCol("selectedFeatures")
-  			.setOutputCol("normFeatures")
-  			.setP(1.0)
-
-		val gl1NormTrainingData = normalizer.transform(training_data)
-		val gl1NormTestData = normalizer.transform(test_data)
+   def applyGeneralizedLinearRegressionModel(normTrainingData:DataFrame , normTestData:DataFrame) : Array[Double] = {
 		val glr = new GeneralizedLinearRegression()
   			.setFamily("gaussian")
 			.setFeaturesCol("normFeatures")
@@ -300,8 +292,8 @@ object MyApp {
   			.setMaxIter(10)
   			.setRegParam(0.8) //check values for this function
 		
-		val glrModel = glr.fit(gl1NormTrainingData)
-		val predictions = glrModel.transform(gl1NormTestData)
+		val glrModel = glr.fit(normTrainingData)
+		val predictions = glrModel.transform(normTestData)
 		val rmse_glr = new RegressionEvaluator()
 			.setMetricName("rmse")
 			.setLabelCol("ArrDelay")
@@ -317,22 +309,14 @@ object MyApp {
 		return Array(rmse_glr, r2_glr)
    }
 
-	def applyRandomForestRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
-		val normalizer = new Normalizer()
-  			.setInputCol("selectedFeatures")
-  			.setOutputCol("normFeatures")
-  			.setP(1.0)
-
-		val rfrNormTrainingData = normalizer.transform(training_data)
-		val rfrNormTestData = normalizer.transform(test_data)
-		
+	def applyRandomForestRegressionModel(normTrainingData:DataFrame , normTestData:DataFrame) : Array[Double] = {
 		val rfr = new RandomForestRegressor()
 			.setFeaturesCol("normFeatures")
 			.setLabelCol("ArrDelay")
 			
-		val rfrModel = rfr.fit(rfrNormTrainingData)
+		val rfrModel = rfr.fit(normTrainingData)
 
-		val predictions = rfrModel.transform(rfrNormTestData)
+		val predictions = rfrModel.transform(normTestData)
 		val rmse_rfr = new RegressionEvaluator()
 			.setMetricName("rmse")
 			.setLabelCol("ArrDelay")
@@ -348,23 +332,14 @@ object MyApp {
 		return Array(rmse_rfr, r2_rfr)
 	}
 
-	def applyGradientBoostedRegressionModel( training_data:DataFrame , test_data:DataFrame ) : Array[Double] = {
-		val normalizer = new Normalizer()
-  			.setInputCol("selectedFeatures")
-  			.setOutputCol("normFeatures")
-  			.setP(1.0)
-
-		val gbtrNormTrainingData = normalizer.transform(training_data)
-		val gbtrNormTestData = normalizer.transform(test_data)
-		
+	def applyGradientBoostedRegressionModel(normTrainingData:DataFrame , normTestData:DataFrame) : Array[Double] = {
 		val gbtr = new GBTRegressor()
 			.setFeaturesCol("normFeatures")
 			.setLabelCol("ArrDelay")
 			.setMaxIter(10)
 			
-		val gbtrModel = gbtr.fit(gbtrNormTrainingData)
-
-		val predictions = gbtrModel.transform(gbtrNormTestData)
+		val gbtrModel = gbtr.fit(normTrainingData)
+		val predictions = gbtrModel.transform(normTestData)
 		val rmse_gbtr = new RegressionEvaluator()
 			.setMetricName("rmse")
 			.setLabelCol("ArrDelay")
