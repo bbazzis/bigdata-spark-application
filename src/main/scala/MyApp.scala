@@ -117,7 +117,7 @@ object MyApp {
 			val input = args(1).toUpperCase()
 			if (!(validAlgorithms.contains(input))) {
 				println("Please either select a valid algorithm or do not select anything.")
-				println("Available algorithms: "++validAlgorithms: _*)
+				println("Available algorithms: "+validAlgorithms)
 				System.exit(0)
 			} else {
 				selectedAlgorithm = input
@@ -190,13 +190,13 @@ object MyApp {
 		val testData = split(1)
 
 		val functions = Map(
-			"LR" -> applyLinearRegressionModel,
-			"GLR" -> applyGeneralizedLinearRegressionModel,
-			"RF" -> applyRandomForestRegressionModel,
-			"GBR" -> applyGradientBoostedRegressionModel
+			"LR" -> applyLinearRegressionModel _,
+			"GLR" -> applyGeneralizedLinearRegressionModel _,
+			"RF" -> applyRandomForestRegressionModel _,
+			"GBR" -> applyGradientBoostedRegressionModel _
 		)
 
-		val numberOfFeatures = 1				// Between 1-14 variables
+		val numberOfFeatures = 14				// Between 1-14 variables
 		var numberOfAlgorithmsToRun = 1			// 1 or 4 algorithms
 		val numberOfEvaluationParameters = 2 	// 2 outputs: RMSE and R^2
 		if (selectedAlgorithm == "NONE")
@@ -241,19 +241,19 @@ object MyApp {
 				univariateResult(i-1)(3) = applyGradientBoostedRegressionModel(fssTrainingData,fssTestData)
 			} else {
 				val algorithm = functions(selectedAlgorithm)
-				univariateResult(i-1)(0) = algorithm(trainingData, testData);
+				univariateResult(i-1)(0) = algorithm(fssTrainingData,fssTestData);
 			}
 		}
 
 		println("Number of variables - rmse | r2")
 		for(i <- 0 to univariateResult.size - 1) {
 			if(selectedAlgorithm == "NONE") {
-				println(i + " LR  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
-				println(i + " GLR - " + univariateResult(i)(1)(0) + " | " + univariateResult(i)(1)(1))
-				println(i + " RF  - " + univariateResult(i)(2)(0) + " | " + univariateResult(i)(2)(1))
-				println(i + " GBR - " + univariateResult(i)(3)(0) + " | " + univariateResult(i)(3)(1))
+				println((i+1) + " LR  - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+				println((i+1) + " GLR - " + univariateResult(i)(1)(0) + " | " + univariateResult(i)(1)(1))
+				println((i+1) + " RF  - " + univariateResult(i)(2)(0) + " | " + univariateResult(i)(2)(1))
+				println((i+1) + " GBR - " + univariateResult(i)(3)(0) + " | " + univariateResult(i)(3)(1))
 			} else {
-				println(i + " " + selectedAlgorithm + " - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
+				println((i+1) + " " + selectedAlgorithm + " - " + univariateResult(i)(0)(0) + " | " + univariateResult(i)(0)(1))
 			}
 		}
 	}
