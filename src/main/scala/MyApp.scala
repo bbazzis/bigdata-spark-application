@@ -93,7 +93,7 @@ object MyApp {
 	val LabelColumn = "ArrDelay"
 
 	def main(args : Array[String]) : Unit = {
-		Logger.getLogger("org").setLevel(Level.WARN)
+		Logger.getLogger("org").setLevel(Level.ERROR)
 		
 		if (args.length == 0) {
 			println("Please enter the directory of the data file")
@@ -102,10 +102,6 @@ object MyApp {
 
 		val filename = args(0)
 		println("filename = " + filename)
-		// filename = "/tmp/csv/1987_min.csv"
-		// TODO: Check whether the file exists at the location
-		// TODO: Check if the file is of correct type
-		// TODO: Check if file can be read without an issue
 		
 		//select algorithm
 		if (args.length == 1)
@@ -133,7 +129,6 @@ object MyApp {
 			.getOrCreate()
 		
 		// Skip malformed data
-		// TODO: Probably need to read into RDD(s)
 		var data = spark.read.option("header",true).option("mode", "DROPMALFORMED").csv(filename)
 		
 		// Transform cancelled field to int and then drop the cancelled flights
@@ -177,9 +172,6 @@ object MyApp {
 		for (colName <- IntColumns++Array(LabelColumn))
 			data = data.withColumn(colName, col(colName).cast("integer"))
 
-		// TODO: remove the line below before the final submission
-		data.printSchema()
-
 		// --------------------------------------------------------------------------------------------------
 		// Machine learning begins
 		// --------------------------------------------------------------------------------------------------
@@ -206,14 +198,13 @@ object MyApp {
 
 		// Feature selection and comparison of rmse and r^2
 		for(i <- 1 to univariateResult.size){
-			println("Number of variables: " + i)
+			println("Training the model with " + i + "/" + univariateResult.size + " features.")
 
 			val assembler = new VectorAssembler()
 				.setInputCols(IntColumns++EncodedCatColumns)
 				.setOutputCol("features")
 				.setHandleInvalid("skip")
 		
-			// val output = assembler.transform(trainingData)
 			val selector = new UnivariateFeatureSelector()
 				.setFeatureType("continuous")
 				.setLabelType("categorical")
@@ -223,7 +214,6 @@ object MyApp {
 				.setLabelCol(LabelColumn)
 				.setOutputCol("selectedFeatures")
 
-			// val result = selector.fit(output).transform(output)
 			val normalizer = new Normalizer()
 				.setInputCol("selectedFeatures")
 				.setOutputCol("normFeatures")
@@ -322,7 +312,7 @@ object MyApp {
 			.setFeaturesCol("normFeatures")
   			.setLabelCol("ArrDelay")
   			.setMaxIter(10)
-  			.setRegParam(0.8) //check values for this function
+  			.setRegParam(0.8)
 		
 		val glrModel = glr.fit(normTrainingData)
 		val predictions = glrModel.transform(normTestData)
